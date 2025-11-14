@@ -20,30 +20,26 @@ int get_length(const char* string) {
     return length;
 }
 
-char** sep_by(const char* string, char separator) {
-    int length = get_length(string);
-    char part1[length], part2[length];
-    int index1=0, index2=0;
+int* sep_by(const char* string, char separator, int begin_index, int end_index) {
+    int index1=begin_index-1, index2=0;
     int trigger = 0;
-    for (int i = 0; i < length; i++) {
+    for (int i = begin_index; i <= end_index; i++) {
         if (string[i] != separator || trigger == 1) {
             if (!trigger) {
-                part1[index1] = string[i];
-                index1 ++;
-            } else {
-                part1[index1] = '\0';
-                part2[index2] = string[i];
-                index2 ++;
+                index1 = i;
             }
         } else {
             trigger = 1;
+            index2 = i + 1;
         }
     }
-    part2[index2] = '\0';
-    char **result = (char**)malloc(sizeof(char) * length * 2);
-    result[0] = part1;
-    result[1] = part2;
-    return result;
+    int* list = (int*)malloc(sizeof(int)*4);
+    list[0] = begin_index;
+    list[1] = index1;
+    list[2] = index2;
+    list[3] = get_length(string)-1;
+
+    return list;
 }
 
 void replace(char* string, int begin_index, int end_index, const char* new_content) {
@@ -75,9 +71,12 @@ void remove_spaces(char* string) {
 
 // Condition checks
 
-int is_number(const char* string) {
-    int length = get_length(string);
-    for (int i = 0; i < length; i++) {
+int is_part_length_zero(const int* list) {
+    return (list[1]-list[0] < 0 || list[3]-list[2] < 0);
+}
+
+int is_number(const char* string, int begin_index, int end_index) {
+    for (int i = begin_index; i <= end_index; i++) {
         if (string[i] < '0' || string[i] > '9') {
             return 0;
         }
@@ -85,31 +84,36 @@ int is_number(const char* string) {
     return 1;
 }
 
-int is_pow_of_a(const char* string) {
-    char **arr = sep_by(string, '^');
-    if (!(get_length(arr[0])* get_length(arr[1]))) {
-        free(arr);
+int is_alpha(const char* string, int begin_index, int end_index) {
+    if (end_index - begin_index != 0) {
         return 0;
     }
-    if (arr[0] == "a" && is_number(arr[1])) {
-        free(arr);
+    if (string[begin_index] == 'a') {
         return 1;
     }
     return 0;
 }
 
-int is_num_times_a(const char* string) {
-    char **arr = sep_by(string, '*');
-    if (!(get_length(arr[0])* get_length(arr[1]))) {
-        free(arr);
+int is_pow_of_a(const char* string, int begin_index, int end_index) {
+    int* list = sep_by(string, '^', begin_index, end_index);
+    if (is_part_length_zero(list)) {
         return 0;
     }
-    if (is_number(arr[0]) && is_pow_of_a(arr[1])) {
-        free(arr);
+    if (is_alpha(string, list[0], list[1]) && is_number(string, list[2], list[3])) {
         return 1;
     }
-    if (is_pow_of_a(arr[0]) && is_number(arr[1])) {
-        free(arr);
+    return 0;
+}
+
+int is_num_times_a(const char* string, int begin_index, int end_index) {
+    int* list = sep_by(string, '*', begin_index, end_index);
+    if (is_part_length_zero(list)) {
+        return 0;
+    }
+    if (is_number(string, list[0], list[1]) && is_pow_of_a(string, list[2], list[3])) {
+        return 1;
+    }
+    if (is_pow_of_a(string, list[0], list[1]) && is_number(string, list[2], list[3])) {
         return 1;
     }
     return 0;
@@ -121,6 +125,7 @@ int main() {
     char new[10] = "u";
     remove_spaces(string);
     replace(string, 2, 3, new);
+    printf("%d\n", is_num_times_a("1222323233*a^123", 0, 17));
 
     return 0;
 }
