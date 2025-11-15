@@ -80,6 +80,14 @@ void remove_spaces(char* string) {
     }
 }
 
+void reverse(char* string, int begin_index, int end_index) {
+    for (int i = begin_index; i < (float)(begin_index+end_index)/2; i++) {
+        char temp = string[i];
+        string[i] = string[end_index-(i-begin_index)];
+        string[end_index-(i-begin_index)] = temp;
+    }
+}
+
 // Condition checks
 
 int is_operator(char c) {
@@ -152,9 +160,18 @@ int is_num_times_a(const char* string, int begin_index, int end_index) {
     return 0;
 }
 
-int is_containing_a(const char* string, int begin_index, int end_index) {
+int is_containing_char(const char* string, int begin_index, int end_index, char c) {
     for (int i = begin_index; i <= end_index; i++) {
-        if (string[i] == 'a') {
+        if (string[i] == c) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int is_inbracket(const char* string, int begin_index, int end_index) {
+    for (int i = begin_index; i <= end_index; i++) {
+        if (string[i] == '(' || string[i] == ')') {
             return 1;
         }
     }
@@ -197,27 +214,12 @@ int IntegerCalculation(char operator, int n1, int n2) {
     }
 }
 
-int* SecondaryCalculation(const char* string, int begin_index, int end_index) {
-    int left = begin_index;
-    int op1 = 1;
-    int op2 = 1;
-    while (left < end_index) {
-        op1 = get_integer(string, left);
-        left = get_numberindex(string, left);
-        if (string[left+1] == '*') {}
-    }
-
-
-    int* list = (int*)malloc(sizeof(int)*2);
-
-}
-
 int* PowerCalculation(const char* string, int begin_index, int end_index) {
     int left = begin_index;
-    int op = 1;
+    int op;
     int result = 1;
-    int trigger = 0;
-    if (!is_containing_a(string, begin_index, end_index)) {
+    if (!is_containing_char(string, begin_index, end_index, 'a')) {
+        int trigger = 0;
         while (left <= end_index) {
             if (!trigger) {
                 op = get_integer(string, left);
@@ -238,7 +240,7 @@ int* PowerCalculation(const char* string, int begin_index, int end_index) {
         }
     }
     int* list = (int*)malloc(sizeof(int)*2);
-    if (is_containing_a(string, begin_index, end_index)) {
+    if (is_containing_char(string, begin_index, end_index, 'a')) {
         list[0] = 1;
         list[1] = result;
     } else {
@@ -248,17 +250,191 @@ int* PowerCalculation(const char* string, int begin_index, int end_index) {
     return list;
 }
 
+int* SecondaryCalculation(const char* string, int begin_index, int end_index) {
+    int left = begin_index;
+    int right = begin_index;
+    int pow = 0;
+    int op2 = 1;
+    int result = 1;
+    int* temp = nullptr;
+    while (right <= end_index) {
+        if (string[right] == '*' || right == end_index) {
+            if (is_containing_char(string, left, right, '^')) {
+                temp = PowerCalculation(string, left, right);
+                op2 = temp[0];
+                pow += temp[1];
+            } else {
+                if (is_containing_char(string, left, right, 'a')) {
+                    pow++;
+                    op2 = 1;
+                } else {
+                    op2 = get_integer(string, left);
+                }
+            }
+            result *= op2;
+            left = right + 1;
+        }
+        right ++;
+    }
+    int* list = (int*)malloc(sizeof(int)*2);
+    list[0] = result;
+    list[1] = pow;
+
+    free(temp);
+    return list;
+}
 
 // Polynomial
 Polynomial* StringToPolynomial(const char* string, int begin_index, int end_index) {
+    // NO BRACKETS IN ZONE
     Polynomial* poly = malloc(sizeof(Polynomial));
     memset(poly, 0, sizeof(Polynomial));
-    for (int i = begin_index; i <= end_index; i++) {
+    int left = begin_index;
+    int right = begin_index;
+    int coefficient, pow;
+    int plus = 1;
+    int negative_trigger = 0;
+    int* temp = nullptr;
+    while (right <= end_index) {
+        if (string[right] == '+' || string[right] == '-' || right == end_index) {
+            plus = (left-1>=begin_index&&string[left-1] == '+' || left == begin_index)?1:0;
+            if (is_containing_char(string, left, right, '*')) {
+                temp = SecondaryCalculation(string, left, right);
+                if (plus) {
+                    poly->power[temp[1]] += temp[0];
+                } else {
+                    poly->power[temp[1]] -= temp[0];
+                }
+            } else if (is_containing_char(string, left, right, '^')) {
+                temp = PowerCalculation(string, left, right);
+                if (plus) {
+                    poly->power[temp[1]] += temp[0];
+                } else {
+                    poly->power[temp[1]] -= temp[0];
+                }
+            } else {
+                if (is_containing_char(string, left, right, 'a')) {
+                    if (plus) {
+                        poly->power[1] += 1;
+                    } else {
+                        poly->power[1] -= 1;
+                    }
+                } else {
+                    if (string[left] == '-') {
+                        negative_trigger = 1;
+                        left = right + 1;
+                        right++;
+                        continue;
+                    } else {
+                        plus = 1;
+                    }
+                    if (negative_trigger && left == 1) {
+                        poly->power[0] -= get_integer(string, left);
+                        negative_trigger = 0;
+                    } else {
+                        if (plus) {
+                            poly->power[0] += get_integer(string, left);
+                        } else {
+                            poly->power[0] -= get_integer(string, left);
+                        }
+                    }
+                }
+            }
+            left = right + 1;
+        }
+        right++;
+    }
+    return poly;
+}
 
+char* PolynomialToString(Polynomial* poly) {
+    char* string = (char*)malloc(sizeof(char)*1000);
+    memset(string, 0, sizeof(char)*1000);
+    int index = 0;
+    int temp = 0;
+    for (int i = 10; i >= 0; i--) {
+        temp = poly->power[i];
+        if (temp != 0) {
+
+            if (temp < 0 && index == 0) {
+                string[index] = '-';
+                index++;
+            } else if (index != 0){
+                string[index] = temp < 0?'-':'+';
+                index++;
+            }
+            temp = abs(temp);
+            int numbegin = index;
+            while (temp >= 1) {
+                string[index] = '0' + temp % 10;
+                index++;
+                temp = temp / 10;
+            }
+            reverse(string, numbegin, index-1);
+            if (i != 0) {
+                string[index] = '*';
+                string[index+1] = 'a';
+                index += 2;
+                if (i != 1) {
+                    string[index] = '^';
+                    index++;
+                    if (i != 10) {
+                        string[index] = '0' + i;
+                        index ++;
+                    } else {
+                        string[index+1] = '1';
+                        string[index+2] = '0';
+                        index += 2;
+                    }
+                }
+            }
+
+
+        }
+    }
+    return string;
+}
+
+void PolynomialMultiplyInt(Polynomial *poly, int mul) {
+    for (int i = 10; i >= 0; i--) {
+        poly->power[i] *= mul;
     }
 }
 
-// Executions
+void PolynomialMultiplyPolynomial(Polynomial *poly, Polynomial *other) {
+    int temp = 0;
+    int* arr = (int*)malloc(sizeof(int)*11);
+    for (int i = 10; i >= 0; i--) {
+        temp = 0;
+        for (int j = 0; j <= i; j++) {
+            temp += poly->power[j] * other->power[i-j];
+        }
+        arr[i] = temp;
+    }
+    for (int i = 0; i < 11; i++) {
+        poly->power[i] = arr[i];
+    }
+    free(arr);
+}
+
+void PolynomialPower(Polynomial *poly, int power) {
+    Polynomial *temp = (Polynomial*)malloc(sizeof(Polynomial));
+    for (int i = 10; i >= 0; i--) {
+        temp->power[i] = poly->power[i];
+    }
+    if (power == 0) {
+        for (int i = 10; i >= 0; i--) {
+            poly->power[i] = 0;
+        }
+        poly->power[0] = 1;
+    } else if (power == 1){return;}
+    for (int i = 1; i < power; i++) {
+        PolynomialMultiplyPolynomial(poly, temp);
+    }
+    free(temp);
+}
+
+// Bracket executions
 
 int get_M_bracket(const char* string, int begin_index) {
     int i = begin_index + 1;
@@ -275,56 +451,6 @@ int get_M_bracket(const char* string, int begin_index) {
     if (open == close){return i - 1;}
     return -1;
 }
-/*
-int* AttachBracket(const char* string, int begin_index, int end_index) {
-    int left = begin_index, right = end_index;
-    int open = 0, close = 0;
-
-    if (begin_index - 2 >= 0 && string[begin_index - 2] == ')' ) {
-        close = 1;
-    }
-
-    while (1) {
-        if ((string[left] == '+' || string[left] == '-') && (open == close)) {
-            break;
-        }
-        if (string[left] == '(') {
-            open++;
-        }
-        if (string[left] == ')') {
-            close++;
-        }
-        if (left != 0) {
-            left--;
-        } else {
-            break;
-        }
-    }
-    open = 0, close = 0;
-    if (end_index + 2 <= get_length(string) - 1 && string[end_index + 2] == '(') {
-        open = 1;
-    }
-    while (1) {
-        if ((string[right] == '+' || string[right] == '-') && (open == close)) {
-            break;
-        }
-        if (string[right] == '(') {
-            open++;
-        }
-        if (string[right] == ')') {
-            close++;
-        }
-        if (right != get_length(string)-1) {
-            right++;
-        } else {
-            break;
-        }
-    }
-    int* list = (int*)malloc(sizeof(int)*2);
-    list[0] = left; list[1] = right;
-    return list;
-}
-*/
 
 int* AttachBracket2Number(const char* string, int begin_index, int end_index) {
     int left = begin_index, right = end_index;
@@ -374,22 +500,41 @@ int* AttachBracket2Number(const char* string, int begin_index, int end_index) {
 }
 
 void ExpandBracket(const char* string, int begin_index, int end_index) {
-    int expandable = !(string[end_index+1] == '^');
-    if (expandable) {
 
-    }
 }
 // TODO
-void Simplify(const char* string) {
+Polynomial* Simplify(const char* string, int begin_index, int end_index) {
+    Polynomial* op = (Polynomial*)malloc(sizeof(Polynomial));
+    int first_negative = string[begin_index] == '-' ? 1 : 0;
+    int left = begin_index + first_negative, right = left;
+    int open = 0, close = 0;
 
+    if (!is_inbracket(string, begin_index, end_index)) {
+        return StringToPolynomial(string, begin_index, end_index);
+    }
+    while (right <= end_index) {
+        if (string[right] == '('){open++;}
+        if (string[right] == ')'){close++;}
+        if (open == close && (string[right] == '+' || string[right] == '-')) {
+            op = Simplify(string, begin_index, end_index);
+            if (first_negative) {
+                PolynomialMultiplyInt(op, -1);
+                first_negative = 0;
+            }
+        }
+
+        right++;
+    }
+
+    free(op);
 }
 
 // Main
 
 int main() {
-    char string[1000] = "11*11*((a^1) ^ 2)*(a+(123*12)-(12))";
-    char string2[1000] = "(1 + 2*a-6*a^2-a+12-2*a^2)";
-    char string3[1000] = "2^3*4*5^6*7"; // 350000
+    char string[1000] = "(a-1)^2+1+11*((a^1) ^ 2)+(a+(123*12)-(12))";
+    char string2[1000] = "-a*a-2*a+a^2+1";
+    char string3[1000] = "a*2"; // 3500000
     char string4[1000] = "a^3^4";
     remove_spaces(string);
     remove_spaces(string2);
@@ -397,7 +542,11 @@ int main() {
     int length = get_length(string);
     printf("%d\n", get_M_bracket(string, 0));
     int * arr = AttachBracket2Number(string, 6, 14);
-    int * arr2 = PowerCalculation(string4, 0, 4);
+    int * arr2 = SecondaryCalculation(string3, 0, get_length(string3));
+    Polynomial* poly = StringToPolynomial(string2, 0, get_length(string2));
+    char* string5 = PolynomialToString(poly);
+    Polynomial* poly2 = StringToPolynomial(string5, 0, get_length(string5));
+    PolynomialPower(poly2, 2);
 
     return 0;
 }
