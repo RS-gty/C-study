@@ -326,7 +326,9 @@ Polynomial* StringToPolynomial(const char* string, int begin_index, int end_inde
                         right++;
                         continue;
                     } else {
-                        plus = 1;
+                        if (left == begin_index) {
+                            plus = 1;
+                        }
                     }
                     if (negative_trigger && left == 1) {
                         poly->power[0] -= get_integer(string, left);
@@ -393,6 +395,12 @@ char* PolynomialToString(Polynomial* poly) {
         }
     }
     return string;
+}
+
+void PolynomialPlus(Polynomial* poly, Polynomial* other) {
+    for (int i = 0; i < 11; i++) {
+        poly->power[i] += other->power[i];
+    }
 }
 
 void PolynomialMultiplyInt(Polynomial *poly, int mul) {
@@ -505,48 +513,130 @@ void ExpandBracket(const char* string, int begin_index, int end_index) {
 // TODO
 Polynomial* Simplify(const char* string, int begin_index, int end_index) {
     Polynomial* op = (Polynomial*)malloc(sizeof(Polynomial));
+    Polynomial* result = (Polynomial*)malloc(sizeof(Polynomial));
+    memset(op, 0, sizeof(Polynomial));
+    memset(result, 0, sizeof(Polynomial));
     int first_negative = string[begin_index] == '-' ? 1 : 0;
+    int init = 1;
     int left = begin_index + first_negative, right = left;
     int open = 0, close = 0;
-
+    int operation = 0;
+    // Range Check
+    if (begin_index > end_index){return result;}
+    // Directly Calculate
     if (!is_inbracket(string, begin_index, end_index)) {
         return StringToPolynomial(string, begin_index, end_index);
     }
+    // Remove Extra Brackets
+    if (string[begin_index] == '(' && get_M_bracket(string, begin_index) == end_index) {
+        return Simplify(string, begin_index+1, end_index-1);
+    }
+
+    // Split & Calculate
+    int has_outer_PM = 0;
+    // Do when plus / minus outside
     while (right <= end_index) {
         if (string[right] == '('){open++;}
         if (string[right] == ')'){close++;}
-        if (open == close && (string[right] == '+' || string[right] == '-')) {
-            op = Simplify(string, begin_index, end_index);
-            if (first_negative) {
-                PolynomialMultiplyInt(op, -1);
-                first_negative = 0;
+        if ((open == close && (string[right] == '+' || string[right] == '-')) || right == end_index) {
+            if (string[right] == '+' || string[right] == '-') {
+                has_outer_PM = 1;
             }
+            if (has_outer_PM) {
+                op = Simplify(string, left, (right == end_index) ? end_index : right-1);
+                if (init) {
+                    if (first_negative) {
+                        PolynomialMultiplyInt(op, -1);
+                        first_negative = 0;
+                    }
+                    PolynomialPlus(result, op);
+                    init = 0;
+                } else {
+                    operation = string[left-1] == '+' ? 1 : -1;
+                    PolynomialMultiplyInt(op, operation);
+                    PolynomialPlus(result, op);
+                }
+            }
+            left = right+1;
         }
-
         right++;
     }
+    // else (only include "Expression" "Multiply" "Power"
+    int has_outer_multiply = 0;
+    if (!has_outer_PM) {
+        open = 0, close = 0;
+        init = 1;
+        left = begin_index + first_negative, right = left;
+        while (right <= end_index) {
+            if (string[right] == '('){open++;}
+            if (string[right] == ')'){close++;}
+            if ((open == close && (string[right] == '*')) || right == end_index) {
+                if (string[right] == '*') {
+                    has_outer_multiply = 1;
+                }
+                if (has_outer_multiply) {
+                    op = Simplify(string, left, (right == end_index) ? end_index : right-1);
+                    if (init) {
+                        if (first_negative) {
+                            PolynomialMultiplyInt(op, -1);
+                            first_negative = 0;
+                        }
+                        PolynomialPlus(result, op);
+                        init = 0;
+                    } else {
+                        PolynomialMultiplyPolynomial(result, op);
+                    }
+                }
+                left = right+1;
+            }
+            right++;
+        }
+    }
 
-    free(op);
+    //else (only include "Expression" "power")
+    if (!has_outer_PM && !has_outer_multiply && is_containing_char(string, begin_index, end_index, '^')) {
+        open = 0, close = 0;
+        init = 1;
+        left = begin_index + first_negative, right = left;
+        while (right <= end_index) {
+            if (string[right] == '('){open++;}
+            if (string[right] == ')'){close++;}
+            if ((open == close && (string[right] == '^')) || right == end_index) {
+                op = Simplify(string, left, (right == end_index) ? end_index : right-1);
+                if (init) {
+                    if (first_negative) {
+                        PolynomialMultiplyInt(op, -1);
+                        first_negative = 0;
+                    }
+                    PolynomialPlus(result, op);
+                    init = 0;
+                } else {
+                    PolynomialPower(result, op->power[0]);
+                }
+                left = right+1;
+            }
+            right ++;
+        }
+    }
+    return result;
+
+
 }
 
 // Main
 
 int main() {
-    char string[1000] = "(a-1)^2+1+11*((a^1) ^ 2)+(a+(123*12)-(12))";
-    char string2[1000] = "-a*a-2*a+a^2+1";
-    char string3[1000] = "a*2"; // 3500000
-    char string4[1000] = "a^3^4";
+    char string[1000] = "a^2 + 2 * a * 1 + 1^2 + 10 -10 +a -a"; // 5a+3
+    char string2[1000] = "1";
+    char string3[1000] = "1";
+    char string4[1000] = "(a-1)^2+1+11*((a^1) ^ 2)+(a+(123*12)-(12))";
     remove_spaces(string);
     remove_spaces(string2);
 
     int length = get_length(string);
     printf("%d\n", get_M_bracket(string, 0));
-    int * arr = AttachBracket2Number(string, 6, 14);
-    int * arr2 = SecondaryCalculation(string3, 0, get_length(string3));
-    Polynomial* poly = StringToPolynomial(string2, 0, get_length(string2));
-    char* string5 = PolynomialToString(poly);
-    Polynomial* poly2 = StringToPolynomial(string5, 0, get_length(string5));
-    PolynomialPower(poly2, 2);
+    Polynomial* poly3 = Simplify(string, 0, get_length(string)-1);
+    printf("%s\n", PolynomialToString(poly3));
 
     return 0;
 }
